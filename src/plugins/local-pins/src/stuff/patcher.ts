@@ -2,6 +2,7 @@ import { findByName, findByProps } from "@vendetta/metro";
 import { React, ReactNative as RN } from "@vendetta/metro/common";
 import { after, before } from "@vendetta/patcher";
 import { getAssetIDByName } from "@vendetta/ui/assets";
+import { showToast } from "@vendetta/ui/toasts";
 import { findInReactTree } from "@vendetta/utils";
 
 import { LazyActionSheet } from "$/components/ActionSheet";
@@ -20,6 +21,9 @@ const ChannelPinsConnected = findByName("ChannelPinsConnected", false);
 const screens = findByProps("MessagesScreen", "MessageContentScreen");
 const { useOnPressSearchItem } = findByProps("useOnPressSearchItem") ?? {};
 const { FlashList } = findByProps("FlashList") ?? {};
+
+const { ActionSheetRow } = findByProps("ActionSheetRow") ?? ({} as any);
+let warnedNoRows = false;
 
 const PrivateChannels = findByName("ConnectedPrivateChannels", false);
 
@@ -40,6 +44,7 @@ export const pinsCallback: {
 
 export default function() {
 	const patches: (() => void)[] = [];
+	showToast("Local Pins loaded"); // TODO: remove once the pin button is confirmed working
 
 	patches.push(
 		after("default", ChannelPinsConnected, (_, pins) => {
@@ -143,23 +148,34 @@ export default function() {
 						[],
 					);
 
-					// Discord renames/reshuffles these between versions, so match any
-					// array of rows (ButtonRow / ActionSheetRow) instead of one exact shape
+					// Discord renames/wraps these between versions (names can be empty
+					// for memo'd components), so match rows by name OR by their props
+					const rowLabel = (c: any) => c?.props?.label ?? c?.props?.message;
 					const isRow = (c: any) =>
-						c?.type?.name === "ButtonRow"
-						|| c?.type?.name === "ActionSheetRow"
-						|| (!!intlProxy.MARK_UNREAD
-							&& c?.props?.message === intlProxy.MARK_UNREAD);
+						!!c
+						&& typeof c === "object"
+						&& (c.type?.name === "ButtonRow"
+							|| c.type?.name === "ActionSheetRow"
+							|| (ActionSheetRow && c.type === ActionSheetRow)
+							|| (typeof rowLabel(c) === "string"
+								&& typeof c.props?.onPress === "function"));
 					const buttons = findInReactTree(
 						comp,
-						x => Array.isArray(x) && x.some(isRow),
+						x => Array.isArray(x) && x.filter(isRow).length >= 2,
 					);
-					if (!buttons) return comp;
+					if (!buttons) {
+						if (!warnedNoRows) {
+							warnedNoRows = true;
+							showToast("Local Pins: couldn't find message action rows");
+						}
+						console.warn("[Local Pins] no action sheet row list found", comp);
+						return comp;
+					}
 
 					const unread = buttons.findIndex(
 						(x: any) =>
 							!!intlProxy.MARK_UNREAD
-							&& x?.props?.message === intlProxy.MARK_UNREAD,
+							&& rowLabel(x) === intlProxy.MARK_UNREAD,
 					);
 					const at = unread >= 0 ? unread : buttons.length;
 					buttons.splice(
