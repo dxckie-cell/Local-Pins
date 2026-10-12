@@ -1,4 +1,4 @@
-import { findByName, findByProps } from "@vendetta/metro";
+import { find, findByName, findByProps } from "@vendetta/metro";
 import { React, ReactNative as RN } from "@vendetta/metro/common";
 import { after, before } from "@vendetta/patcher";
 import { getAssetIDByName } from "@vendetta/ui/assets";
@@ -11,7 +11,7 @@ import intlProxy from "$/lib/intlProxy";
 import type { SearchContext } from "$/types";
 
 import ChannelPinsRow from "../components/ChannelPinsRow";
-import { diag, recordScreen } from "./diag";
+import { diag, recordScreen, summarize } from "./diag";
 import PinMessageLocallyAction, { ViewLocalPinsAction } from "../components/MessageActionSheetButton";
 import ChannelPinsModal from "../components/modals/ChannelPinsModal";
 import RedesignChannelPinsRow from "../components/RedesignChannelPinsRow";
@@ -76,30 +76,61 @@ export default function() {
 	);
 	});
 
-	attempt("screen diagnostics", () => {
-		diag.screensFound = !!screens;
-		if (!screens) return;
-		diag.screenKeys = Object.keys(screens).filter(k => typeof screens[k] === "function");
-		for (const k of diag.screenKeys) {
-			if (!/Screen$/.test(k)) continue;
-			patches.push(after(k, screens, ([props]) => void recordScreen(k, props)));
+	// Discord renamed/moved the message-list screen used by the channel info tabs
+	// (Pins / Links / Files...). Hook every known candidate and wrap only the Pins tab.
+	const collect = (o: any, out: { key: string; val: any }[], depth = 0, prefix = "") => {
+		if (!o || typeof o !== "object" || depth > 2) return;
+		for (const key of Object.keys(o).slice(0, 40)) {
+			const val = o[key];
+			out.push({ key: prefix + key, val });
+			if (val && typeof val === "object" && !Array.isArray(val)) {
+				collect(val, out, depth + 1, `${prefix}${key}.`);
+			}
+		}
+	};
+	const wrapPins = (props: any, ret: any) => {
+		const all: { key: string; val: any }[] = [];
+		collect(props, all);
+		const isPins = all.some(x => typeof x.val === "string" && /^pins?$/i.test(x.val));
+		if (!isPins) return;
+
+		const channelId = all.find(x =>
+			/channel/i.test(x.key) && typeof x.val === "string" && /^\d{15,22}$/.test(x.val)
+		)?.val ?? all.find(x => /channel/i.test(x.key) && x.val?.id)?.val.id;
+		if (!channelId) return;
+
+		return React.createElement(PinsScreen, { channelId, ret });
+	};
+
+	attempt("pins screen", () => {
+		const targets: [string, any, string][] = [];
+		const base = find((m: any) =>
+			(m?.default?.displayName ?? m?.default?.name) === "BaseMessagesScreen"
+		);
+		if (base) targets.push(["BaseMessagesScreen", base, "default"]);
+		if (screens?.MessagesScreen) targets.push(["MessagesScreen", screens, "MessagesScreen"]);
+
+		diag.screensFound = targets.length > 0;
+		diag.screenKeys = targets.map(x => x[0]);
+		if (!targets.length) throw new Error("no messages screen found");
+
+		for (const [name, mod, key] of targets) {
+			patches.push(
+				after(key, mod, ([props], ret) => {
+					recordScreen(name, props);
+					return wrapPins(props, ret);
+				}),
+			);
+			diag.patched.push(name);
+		}
+
+		const nav = findByProps("ChannelDetailsNavigatorScreens") as any;
+		const screensObj = nav?.ChannelDetailsNavigatorScreens;
+		if (screensObj) {
+			diag.info.push(`ChannelDetailsNavigatorScreens: ${summarize(screensObj)}`);
 		}
 	});
 
-	attempt("pins screen", () => {
-		if (!screens?.MessagesScreen) throw new Error("MessagesScreen not found");
-		diag.patched.push("pins screen");
-		patches.push(
-			after("MessagesScreen", screens, ([props], ret) => {
-				if (props?.tab !== "pins") return;
-				const channelId = props.searchContext?.channelId
-					?? props.searchContext?.channel?.id
-					?? props.channelId;
-				if (!channelId) return;
-				return React.createElement(PinsScreen, { channelId, ret });
-			}),
-		);
-	});
 	attempt("channel settings pins", () => {
 	patches.push(
 		after("default", ChannelSettingsModal, (_, navigator) => {

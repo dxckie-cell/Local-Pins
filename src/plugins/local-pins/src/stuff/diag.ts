@@ -10,6 +10,7 @@ export const diag = {
 	failed: [] as string[],
 	calls: [] as string[],
 	scan: [] as string[],
+	info: [] as string[],
 };
 
 const seen = new Set<string>();
@@ -22,13 +23,23 @@ function keysOf(o: any) {
 	}
 }
 
-export function recordScreen(name: string, props: any) {
-	let tab = "";
+/** Short, shallow description of a props object (primitives shown, objects by keys). */
+export function summarize(o: any, depth = 0): string {
+	if (o == null) return String(o);
+	if (typeof o === "string") return JSON.stringify(o.length > 28 ? `${o.slice(0, 28)}…` : o);
+	if (typeof o !== "object") return typeof o === "function" ? "fn" : String(o);
+	if (depth >= 2) return `{${keysOf(o)}}`;
 	try {
-		tab = String(props?.tab ?? props?.route?.params?.tab ?? "");
-	} catch {}
-	const sc = props?.searchContext;
-	const line = `${name} tab=${tab || "-"} props=[${keysOf(props)}] ctx=[${keysOf(sc)}]`;
+		return `{${
+			Object.keys(o).slice(0, 14).map(k => `${k}:${summarize(o[k], depth + 1)}`).join(" ")
+		}}`;
+	} catch {
+		return "{?}";
+	}
+}
+
+export function recordScreen(name: string, props: any) {
+	const line = `${name} ${summarize(props)}`;
 	if (seen.has(line)) return;
 	seen.add(line);
 	diag.calls.push(line);
@@ -41,6 +52,7 @@ export function report() {
 		`screen exports: ${diag.screenKeys.join(", ") || "none"}`,
 		`patched: ${diag.patched.join(", ") || "none"}`,
 		`failed: ${diag.failed.join(", ") || "none"}`,
+		...diag.info,
 		...(diag.scan.length ? ["module scan:", ...diag.scan] : []),
 		"screen renders seen:",
 		...(diag.calls.length ? diag.calls : ["(none yet - open a channel's Pins tab)"]),
