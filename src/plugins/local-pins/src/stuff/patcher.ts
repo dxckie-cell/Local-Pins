@@ -53,7 +53,6 @@ export default function() {
 			console.warn(`[Local Pins] patch "${name}" failed`, e);
 		}
 	};
-	showToast("Local Pins loaded"); // TODO: remove once the pin button is confirmed working
 
 	attempt("pins list", () => {
 	patches.push(
@@ -255,8 +254,10 @@ export default function() {
 	);
 	});
 
+	// Some Discord UI patches (pins list, home/DM rows) don't exist on newer Discord
+	// versions; that's expected, so only log it instead of toasting on every launch.
 	if (failed.length) {
-		showToast(`Local Pins: failed patches: ${failed.join(", ")}`);
+		console.warn(`[Local Pins] skipped patches: ${failed.join(", ")}`);
 	}
 
 	return () => {

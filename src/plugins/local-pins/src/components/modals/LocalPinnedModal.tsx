@@ -21,6 +21,26 @@ const RowManager = findByName("RowManager");
 
 const ThemeStore = findByStoreName("ThemeStore");
 
+// Discord's own link opener: handles discord.com/channels/... links in-app,
+// the same way tapping a message link in chat does (no OS "open in app" prompt)
+const { openUrl: openInApp } = findByProps("openUrl") ?? ({} as any);
+const { jumpToMessage } = findByProps("jumpToMessage") ?? ({} as any);
+
+function jumpTo(channel: any, channelId: string, messageId: string) {
+	const link = `https://discord.com/channels/${channel?.guild_id ?? "@me"}/${channelId}/${messageId}`;
+	if (typeof openInApp === "function") {
+		try {
+			return openInApp(link);
+		} catch {}
+	}
+	if (typeof jumpToMessage === "function") {
+		try {
+			return jumpToMessage({ channelId, messageId, flash: true, jumpType: "ANIMATED" });
+		} catch {}
+	}
+	url.openDeeplink(link);
+}
+
 // Plain-text fallback for when Discord's own message renderer is unavailable/broken
 const PlainMessage = ({ message }: { message: any }) => {
 	const author = message.author?.globalName ?? message.author?.username ?? "unknown";
@@ -104,9 +124,8 @@ const Message = ({
 			android_ripple={styles.androidRipple}
 			onPress={() => {
 				popModal();
-				url.openDeeplink(
-					`https://discord.com/channels/${channel?.guild_id ?? "@me"}/${channelId}/${message.id}`,
-				);
+				// give the modal a moment to close before navigating
+				setTimeout(() => jumpTo(channel, channelId, message.id), 250);
 			}}
 			onLongPress={() => {
 				showSimpleActionSheet({
