@@ -11,6 +11,7 @@ import intlProxy from "$/lib/intlProxy";
 import type { SearchContext } from "$/types";
 
 import ChannelPinsRow from "../components/ChannelPinsRow";
+import { diag, recordScreen } from "./diag";
 import PinMessageLocallyAction, { ViewLocalPinsAction } from "../components/MessageActionSheetButton";
 import ChannelPinsModal from "../components/modals/ChannelPinsModal";
 import RedesignChannelPinsRow from "../components/RedesignChannelPinsRow";
@@ -18,7 +19,8 @@ import PinsScreen from "../components/screens/PinsScreen";
 
 const ChannelSettingsModal = findByName("ChannelSettingsModal", false);
 const ChannelPinsConnected = findByName("ChannelPinsConnected", false);
-const screens = findByProps("MessagesScreen", "MessageContentScreen");
+const screens = findByProps("MessagesScreen", "MessageContentScreen")
+	?? findByProps("MessagesScreen");
 const { useOnPressSearchItem } = findByProps("useOnPressSearchItem") ?? {};
 const { FlashList } = findByProps("FlashList") ?? {};
 
@@ -50,6 +52,7 @@ export default function() {
 			fn();
 		} catch (e) {
 			failed.push(name);
+			diag.failed.push(name);
 			console.warn(`[Local Pins] patch "${name}" failed`, e);
 		}
 	};
@@ -73,8 +76,19 @@ export default function() {
 	);
 	});
 
+	attempt("screen diagnostics", () => {
+		diag.screensFound = !!screens;
+		if (!screens) return;
+		diag.screenKeys = Object.keys(screens).filter(k => typeof screens[k] === "function");
+		for (const k of diag.screenKeys) {
+			if (!/Screen$/.test(k)) continue;
+			patches.push(after(k, screens, ([props]) => void recordScreen(k, props)));
+		}
+	});
+
 	attempt("pins screen", () => {
 		if (!screens?.MessagesScreen) throw new Error("MessagesScreen not found");
+		diag.patched.push("pins screen");
 		patches.push(
 			after("MessagesScreen", screens, ([props], ret) => {
 				if (props?.tab !== "pins") return;
