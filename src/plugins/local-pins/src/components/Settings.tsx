@@ -12,7 +12,7 @@ import Text from "$/components/Text";
 import { openModal } from "$/types";
 
 import { hasAnyPin, vstorage } from "..";
-import { report } from "../stuff/diag";
+import { report, scanModules } from "../stuff/diag";
 import LocalPinnedModal from "./modals/LocalPinnedModal";
 
 const { FormRow } = Forms;
@@ -56,6 +56,15 @@ export default () => {
 					onPress={() => {
 						clipboard.setString(report());
 						showToast("Copied diagnostics");
+					}}
+				/>
+				<FormRow
+					label="Scan Discord modules"
+					subLabel="Open a channel's Pins tab first, then come back and tap this"
+					leading={<FormRow.Icon source={getAssetIDByName("PencilIcon")} />}
+					onPress={() => {
+						scanModules();
+						refresh();
 					}}
 				/>
 				<FormRow

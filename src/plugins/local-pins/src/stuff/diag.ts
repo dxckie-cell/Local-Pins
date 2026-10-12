@@ -1,3 +1,5 @@
+import { modules } from "@vendetta/metro";
+
 // Lightweight on-device diagnostics, shown in the plugin settings
 // (helps when Discord changes internals and a patch silently stops matching)
 
@@ -7,6 +9,7 @@ export const diag = {
 	patched: [] as string[],
 	failed: [] as string[],
 	calls: [] as string[],
+	scan: [] as string[],
 };
 
 const seen = new Set<string>();
@@ -38,7 +41,38 @@ export function report() {
 		`screen exports: ${diag.screenKeys.join(", ") || "none"}`,
 		`patched: ${diag.patched.join(", ") || "none"}`,
 		`failed: ${diag.failed.join(", ") || "none"}`,
+		...(diag.scan.length ? ["module scan:", ...diag.scan] : []),
 		"screen renders seen:",
 		...(diag.calls.length ? diag.calls : ["(none yet - open a channel's Pins tab)"]),
 	].join("\n");
+}
+
+const SCAN_RE = /Pins|Pinned|pins|pinned|MessagesScreen|SearchResult|ChannelInfo|ChannelProfile|ChannelDetails/;
+
+/** Lists initialized Discord modules whose export names look pins/screen related. */
+export function scanModules(limit = 70) {
+	const out: string[] = [];
+	for (const id of Object.keys(modules as any)) {
+		try {
+			const m = (modules as any)[id];
+			if (!m?.isInitialized) continue;
+			const e = m.publicModule?.exports;
+			if (!e || (typeof e !== "object" && typeof e !== "function")) continue;
+
+			const hits: string[] = [];
+			for (const k of Object.keys(e)) if (SCAN_RE.test(k)) hits.push(k);
+			const d = e.default;
+			if (d && (typeof d === "function" || typeof d === "object")) {
+				const n = d.displayName ?? d.name;
+				if (typeof n === "string" && SCAN_RE.test(n)) hits.push(`default=${n}`);
+				if (typeof d === "object") {
+					for (const k of Object.keys(d).slice(0, 200)) if (SCAN_RE.test(k)) hits.push(`default.${k}`);
+				}
+			}
+			if (hits.length) out.push(`${id}: ${hits.slice(0, 6).join(", ")}`);
+		} catch {}
+		if (out.length >= limit) break;
+	}
+	diag.scan = out.length ? out : ["(no matches - open the Pins tab first, then scan again)"];
+	return diag.scan;
 }
