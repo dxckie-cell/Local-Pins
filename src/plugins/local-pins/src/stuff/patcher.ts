@@ -44,8 +44,18 @@ export const pinsCallback: {
 
 export default function() {
 	const patches: (() => void)[] = [];
+	const failed: string[] = [];
+	const attempt = (name: string, fn: () => void) => {
+		try {
+			fn();
+		} catch (e) {
+			failed.push(name);
+			console.warn(`[Local Pins] patch "${name}" failed`, e);
+		}
+	};
 	showToast("Local Pins loaded"); // TODO: remove once the pin button is confirmed working
 
+	attempt("pins list", () => {
 	patches.push(
 		after("default", ChannelPinsConnected, (_, pins) => {
 			const { channelId, loaded, messages } = pins.props;
@@ -62,7 +72,9 @@ export default function() {
 			};
 		}),
 	);
+	});
 
+	attempt("pins screen", () => {
 	if (screens?.MessagesScreen && useOnPressSearchItem) {
 		patches.push(
 			after(
@@ -98,6 +110,8 @@ export default function() {
 			),
 		);
 	}
+	});
+	attempt("channel settings pins", () => {
 	patches.push(
 		after("default", ChannelSettingsModal, (_, navigator) => {
 			const { screens } = navigator.props;
@@ -133,7 +147,9 @@ export default function() {
 			);
 		}),
 	);
+	});
 
+	attempt("message action sheet", () => {
 	patches.push(
 		before("openLazy", LazyActionSheet, ([component, key, msg]) => {
 			const message = msg?.message;
@@ -187,7 +203,9 @@ export default function() {
 			});
 		}),
 	);
+	});
 
+	attempt("home pins row", () => {
 	if (FlashList) {
 		patches.push(
 			after(
@@ -200,6 +218,7 @@ export default function() {
 			),
 		);
 	}
+	});
 
 	// patches.push(
 	//   after("default", FastList, ([d], ret) =>
@@ -209,6 +228,7 @@ export default function() {
 	//   ),
 	// );
 
+	attempt("dm list pins row", () => {
 	let privatePatched = false;
 	patches.push(
 		after("default", PrivateChannels, (_, res) => {
@@ -232,6 +252,11 @@ export default function() {
 			);
 		}),
 	);
+	});
+
+	if (failed.length) {
+		showToast(`Local Pins: failed patches: ${failed.join(", ")}`);
+	}
 
 	return () => {
 		for (const x of patches) {

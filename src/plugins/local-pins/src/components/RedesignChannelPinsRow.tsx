@@ -9,10 +9,10 @@ import { openModal } from "$/types";
 import { hasAnyPin } from "..";
 import LocalPinnedModal from "./modals/LocalPinnedModal";
 
-const { useChannelListLayout } = findByProps("useChannelListLayout");
+const { useChannelListLayout } = findByProps("useChannelListLayout") ?? ({} as any);
 
 export default function RedesignChannelPinsRow({ ret }: { ret: any }) {
-	const layout = useChannelListLayout();
+	const layout = useChannelListLayout?.();
 	if (!hasAnyPin()) return ret;
 
 	const styles = stylesheet.createThemedStyleSheet({

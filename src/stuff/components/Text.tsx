@@ -13,7 +13,7 @@ export function TrailingText({ children }: React.PropsWithChildren<object>) {
 	);
 }
 
-const { useThemeContext } = findByProps("useThemeContext");
+const { useThemeContext } = findByProps("useThemeContext") ?? ({} as any);
 
 export default function Text({
 	variant,

@@ -15,7 +15,7 @@ import useLocalPinned from "../../hooks/useLocalPinned";
 const { default: ChatItemWrapper } = findByProps(
 	"DCDAutoModerationSystemMessageView",
 	"default",
-);
+) ?? ({} as any);
 const MessageRecord = findByName("MessageRecord");
 const RowManager = findByName("RowManager");
 

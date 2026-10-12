@@ -8,14 +8,14 @@ import type { StateStorage } from "zustand/middleware";
 // JS deps
 //
 export const WebView = find((x: any) => x?.WebView && !x.default)
-	.WebView as typeof import("react-native-webview").default;
+		?.WebView as typeof import("react-native-webview").default;
 
 export const Svg = findByProps("SvgXml") as typeof import("react-native-svg");
 
 export const Reanimated = findByProps("useSharedValue") as typeof _Reanimated;
 
 export const FlashList = findByProps("FlashList")
-	.FlashList as typeof _FlashList.FlashList;
+	?.FlashList as typeof _FlashList.FlashList;
 
 export const Joi = findByProps("isJoi") as unknown as typeof import("joi");
 
@@ -37,7 +37,7 @@ export const DocumentsNew = findByProps(
 	"saveDocuments",
 ) as typeof import("@react-native-documents/picker");
 
-const _MAS = findByProps("MobileAudioSound").MobileAudioSound;
+const _MAS = findByProps("MobileAudioSound")?.MobileAudioSound;
 
 // Messy code
 export class MobileAudioSound {
@@ -148,7 +148,7 @@ function getNativeModule<T = any>(...names: string[]): T | undefined {
 			if (module) return module as T;
 		}
 
-		if (nmp[name]) return nmp[name] as T;
+		if (nmp?.[name]) return nmp[name] as T;
 	}
 
 	return undefined;

@@ -3,19 +3,19 @@ import { ReactNative as RN } from "@vendetta/metro/common";
 import { without } from "@vendetta/utils";
 import type { ImageSourcePropType, ViewProps } from "react-native";
 
-const _ActionSheet = findByProps("ActionSheet").ActionSheet;
-const { BottomSheetTitleHeader } = findByProps("BottomSheetTitleHeader");
-const { ActionSheetCloseButton } = findByProps("ActionSheetCloseButton");
+const _ActionSheet = findByProps("ActionSheet")?.ActionSheet;
+const { BottomSheetTitleHeader } = findByProps("BottomSheetTitleHeader") ?? ({} as any);
+const { ActionSheetCloseButton } = findByProps("ActionSheetCloseButton") ?? ({} as any);
 
-export const LazyActionSheet = findByProps("openLazy", "hideActionSheet") as {
+export const LazyActionSheet = (findByProps("openLazy", "hideActionSheet") ?? {}) as {
 	openLazy: (component: Promise<any>, key: string, props?: object) => void;
 	hideActionSheet: () => void;
 };
 export const { openLazy, hideActionSheet } = LazyActionSheet;
 
-export const { showSimpleActionSheet } = findByProps(
+export const { showSimpleActionSheet } = (findByProps(
 	"showSimpleActionSheet",
-) as {
+) ?? {}) as {
 	showSimpleActionSheet: (props: {
 		key: "CardOverflow";
 		header: {

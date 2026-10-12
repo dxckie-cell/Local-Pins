@@ -8,7 +8,7 @@ import { vstorage } from "../..";
 import useLocalPinned from "../../hooks/useLocalPinned";
 import { pinsCallback } from "../../stuff/patcher";
 
-const { useSearchResultsQuery } = findByProps("useSearchResultsQuery");
+const { useSearchResultsQuery } = findByProps("useSearchResultsQuery") ?? ({} as any);
 
 export default function PinsScreen({
 	channelId,
