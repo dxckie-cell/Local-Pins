@@ -1,5 +1,5 @@
 import { findByName, findByProps, findByStoreName } from "@vendetta/metro";
-import { ReactNative as RN, stylesheet, url } from "@vendetta/metro/common";
+import { React, ReactNative as RN, stylesheet, url } from "@vendetta/metro/common";
 import { semanticColors } from "@vendetta/ui";
 import { getAssetIDByName } from "@vendetta/ui/assets";
 
@@ -20,6 +20,52 @@ const MessageRecord = findByName("MessageRecord");
 const RowManager = findByName("RowManager");
 
 const ThemeStore = findByStoreName("ThemeStore");
+
+// Plain-text fallback for when Discord's own message renderer is unavailable/broken
+const PlainMessage = ({ message }: { message: any }) => {
+	const author = message.author?.globalName ?? message.author?.username ?? "unknown";
+	const attachments = message.attachments?.length ?? 0;
+	let when = "";
+	try {
+		const t = message.timestamp?.toDate?.() ?? message.timestamp;
+		when = t ? new Date(t).toLocaleString() : "";
+	} catch {}
+
+	return (
+		<RN.View style={{ gap: 2 }}>
+			<Text variant="text-sm/semibold" color="TEXT_DEFAULT">
+				{author}
+				{when ? `  ·  ${when}` : ""}
+			</Text>
+			<Text variant="text-md/medium" color="TEXT_DEFAULT">
+				{message.content
+					|| (attachments ? `[${attachments} attachment${attachments !== 1 ? "s" : ""}]` : "[no text]")}
+			</Text>
+		</RN.View>
+	);
+};
+
+class SafeMessage extends React.Component<
+	{ message: any },
+	{ failed: boolean }
+> {
+	state = { failed: false };
+	static getDerivedStateFromError() {
+		return { failed: true };
+	}
+	render() {
+		const { message } = this.props;
+		if (this.state.failed || !ChatItemWrapper || !MessageRecord || !RowManager) {
+			return <PlainMessage message={message} />;
+		}
+		return (
+			<ChatItemWrapper
+				rowGenerator={new RowManager()}
+				message={new MessageRecord(message)}
+			/>
+		);
+	}
+}
 
 const Message = ({
 	message,
@@ -95,10 +141,7 @@ const Message = ({
 					{channel?.name ?? "unknown"}
 				</Text>
 			</RN.View>
-			<ChatItemWrapper
-				rowGenerator={new RowManager()}
-				message={new MessageRecord(message)}
-			/>
+			<SafeMessage message={message} />
 		</RN.Pressable>
 	);
 };

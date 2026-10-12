@@ -11,7 +11,7 @@ import intlProxy from "$/lib/intlProxy";
 import type { SearchContext } from "$/types";
 
 import ChannelPinsRow from "../components/ChannelPinsRow";
-import PinMessageLocallyAction from "../components/MessageActionSheetButton";
+import PinMessageLocallyAction, { ViewLocalPinsAction } from "../components/MessageActionSheetButton";
 import ChannelPinsModal from "../components/modals/ChannelPinsModal";
 import RedesignChannelPinsRow from "../components/RedesignChannelPinsRow";
 import PinsScreen from "../components/screens/PinsScreen";
@@ -198,6 +198,7 @@ export default function() {
 						at,
 						0,
 						React.createElement(PinMessageLocallyAction, message),
+						React.createElement(ViewLocalPinsAction),
 					);
 				});
 			});

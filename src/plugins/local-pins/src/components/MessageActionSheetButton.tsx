@@ -3,8 +3,10 @@ import { getAssetIDByName } from "@vendetta/ui/assets";
 import { showToast } from "@vendetta/ui/toasts";
 
 import { hideActionSheet } from "$/components/ActionSheet";
+import { openModal } from "$/types";
 
 import { addPin, hasPin, removePin } from "..";
+import LocalPinnedModal from "./modals/LocalPinnedModal";
 
 export default function(message: {
 	channel_id: string;
@@ -41,6 +43,20 @@ export default function(message: {
 					);
 				}
 				hideActionSheet();
+			}}
+		/>
+	);
+}
+
+export function ViewLocalPinsAction() {
+	return (
+		<RedesignRow
+			label="View Local Pins"
+			icon={getAssetIDByName("PinIcon")}
+			onPress={() => {
+				hideActionSheet();
+				// let the sheet finish closing before pushing the modal
+				setTimeout(() => openModal("local-pinned", LocalPinnedModal), 300);
 			}}
 		/>
 	);

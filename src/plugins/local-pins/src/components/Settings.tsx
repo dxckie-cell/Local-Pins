@@ -8,7 +8,10 @@ import { Forms } from "@vendetta/ui/components";
 import { BetterTableRowGroup } from "$/components/BetterTableRow";
 import Text from "$/components/Text";
 
-import { vstorage } from "..";
+import { openModal } from "$/types";
+
+import { hasAnyPin, vstorage } from "..";
+import LocalPinnedModal from "./modals/LocalPinnedModal";
 
 const { FormRow } = Forms;
 
@@ -27,6 +30,18 @@ export default () => {
 
 	return (
 		<RN.ScrollView>
+			<BetterTableRowGroup
+				title="Local pins"
+				icon={getAssetIDByName("PinIcon")}
+			>
+				<FormRow
+					label="View local pins"
+					subLabel={hasAnyPin() ? "Open your locally pinned messages" : "Nothing pinned yet"}
+					leading={<FormRow.Icon source={getAssetIDByName("PinIcon")} />}
+					trailing={<FormRow.Arrow />}
+					onPress={() => openModal("local-pinned", LocalPinnedModal)}
+				/>
+			</BetterTableRowGroup>
 			<BetterTableRowGroup
 				title="Settings"
 				icon={getAssetIDByName("SettingsIcon")}
