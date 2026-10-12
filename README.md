@@ -12,3 +12,18 @@ Based on [Local Pins by nexpid](https://github.com/nexpid/RevengePlugins/tree/de
 - Pins patch no longer throws when no override is registered for a channel.
 
 `local-pins-fix.patch` is the diff against upstream. The `src/` layout mirrors the nexpid/RevengePlugins monorepo (`$/*` resolves to `src/stuff/*`) so it builds there.
+
+## Build & install
+
+Requires Node 20+.
+
+```sh
+npm install
+npm run build      # -> dist/index.js + dist/manifest.json  (use `npm run dev` for an unminified build)
+npm run check      # type-check
+npm run serve      # serves dist/ at http://localhost:4040/
+```
+
+Then in Revenge, go to Plugins → Install and paste `http://<your-pc-ip>:4040/` (phone and PC on the same network). Alternatively host `dist/` anywhere static, e.g. GitHub Pages.
+
+`scripts/build.mjs` is a trimmed-down copy of the nexpid/RevengePlugins build pipeline (esbuild + swc, `@vendetta/*` mapped to globals). Not yet verified end-to-end.

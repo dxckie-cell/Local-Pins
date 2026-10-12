@@ -1,0 +1,30 @@
+{
+	"name": "local-pins",
+	"private": true,
+	"type": "module",
+	"license": "CC-BY-4.0",
+	"scripts": {
+		"build": "node scripts/build.mjs",
+		"dev": "node scripts/build.mjs --dev",
+		"serve": "node scripts/serve.mjs",
+		"check": "tsc"
+	},
+	"dependencies": {
+		"@nexpid/vdp-shared": "^1.0.2",
+		"@swc/core": "^1.10.7",
+		"emoji-regex": "^10.4.0",
+		"esbuild": "^0.20.1",
+		"fuzzysort": "^3.1.0",
+		"zustand": "^5.0.6"
+	},
+	"devDependencies": {
+		"@types/node": "^22.0.0",
+		"typescript": "^5.8.3",
+		"vendetta-types": "^2.4.21"
+	},
+	"pnpm": {
+		"peerDependencyRules": { "ignoreMissing": ["react", "react-native"] },
+		"onlyBuiltDependencies": ["@swc/core", "esbuild"]
+	},
+	"engines": { "node": ">=20" }
+}
