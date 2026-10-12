@@ -189,6 +189,31 @@ export default function() {
 		diag.patched.push("ChannelInfo probe");
 	});
 
+	// Discord 343: the channel info "Pins" tab is a component named PinsScreen
+	// (props: { tab: "pins", searchContext, isFocused }) that renders InitialPinsScreen.
+	attempt("pins tab", () => {
+		for (const name of ["PinsScreen", "InitialPinsScreen"]) {
+			const mod = findByName(name, false) as any;
+			const d = mod?.default;
+			let obj: any;
+			let key: string;
+			if (typeof d === "function") [obj, key] = [mod, "default"];
+			else if (typeof d?.type === "function") [obj, key] = [d, "type"]; // React.memo
+			else if (typeof d?.render === "function") [obj, key] = [d, "render"]; // forwardRef
+			else continue;
+
+			patches.push(
+				after(key, obj, ([props], ret) => {
+					recordScreen(name, props);
+					return wrapPins(props, ret);
+				}),
+			);
+			diag.patched.push(name);
+			return;
+		}
+		throw new Error("PinsScreen / InitialPinsScreen not found");
+	});
+
 	attempt("channel settings pins", () => {
 	patches.push(
 		after("default", ChannelSettingsModal, (_, navigator) => {
