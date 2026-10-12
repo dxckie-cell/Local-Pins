@@ -143,18 +143,25 @@ export default function() {
 						[],
 					);
 
+					// Discord renames/reshuffles these between versions, so match any
+					// array of rows (ButtonRow / ActionSheetRow) instead of one exact shape
+					const isRow = (c: any) =>
+						c?.type?.name === "ButtonRow"
+						|| c?.type?.name === "ActionSheetRow"
+						|| (!!intlProxy.MARK_UNREAD
+							&& c?.props?.message === intlProxy.MARK_UNREAD);
 					const buttons = findInReactTree(
 						comp,
-						x => x[0]?.type?.name === "ButtonRow",
+						x => Array.isArray(x) && x.some(isRow),
 					);
 					if (!buttons) return comp;
 
-					const at = Math.max(
-						buttons.findIndex(
-							x => x.props.message === intlProxy.MARK_UNREAD,
-						),
-						0,
+					const unread = buttons.findIndex(
+						(x: any) =>
+							!!intlProxy.MARK_UNREAD
+							&& x?.props?.message === intlProxy.MARK_UNREAD,
 					);
+					const at = unread >= 0 ? unread : buttons.length;
 					buttons.splice(
 						at,
 						0,
