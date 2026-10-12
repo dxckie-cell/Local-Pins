@@ -11,7 +11,7 @@ import intlProxy from "$/lib/intlProxy";
 import type { SearchContext } from "$/types";
 
 import ChannelPinsRow from "../components/ChannelPinsRow";
-import { diag, recordScreen, summarize } from "./diag";
+import { diag } from "./diag";
 import PinMessageLocallyAction, { ViewLocalPinsAction } from "../components/MessageActionSheetButton";
 import ChannelPinsModal from "../components/modals/ChannelPinsModal";
 import RedesignChannelPinsRow from "../components/RedesignChannelPinsRow";
@@ -89,6 +89,11 @@ export default function() {
 		}
 	};
 	const wrapPins = (props: any, ret: any) => {
+		// fast path (this runs on every render of the tab): Discord 343 passes exactly this shape
+		if (props?.tab === "pins" && typeof props.searchContext?.channelId === "string") {
+			return React.createElement(PinsScreen, { channelId: props.searchContext.channelId, ret });
+		}
+
 		const all: { key: string; val: any }[] = [];
 		collect(props, all);
 		const isPins = all.some(x => typeof x.val === "string" && /^pins?$/i.test(x.val));
@@ -101,93 +106,6 @@ export default function() {
 
 		return React.createElement(PinsScreen, { channelId, ret });
 	};
-
-	attempt("pins screen", () => {
-		const targets: [string, any, string][] = [];
-		const base = find((m: any) =>
-			(m?.default?.displayName ?? m?.default?.name) === "BaseMessagesScreen"
-		);
-		if (base) targets.push(["BaseMessagesScreen", base, "default"]);
-		if (screens?.MessagesScreen) targets.push(["MessagesScreen", screens, "MessagesScreen"]);
-
-		diag.screensFound = targets.length > 0;
-		diag.screenKeys = targets.map(x => x[0]);
-		if (!targets.length) throw new Error("no messages screen found");
-
-		for (const [name, mod, key] of targets) {
-			patches.push(
-				after(key, mod, ([props], ret) => {
-					recordScreen(name, props);
-					return wrapPins(props, ret);
-				}),
-			);
-			diag.patched.push(name);
-		}
-
-		const nav = findByProps("ChannelDetailsNavigatorScreens") as any;
-		const screensObj = nav?.ChannelDetailsNavigatorScreens;
-		if (screensObj) {
-			diag.info.push(`ChannelDetailsNavigatorScreens: ${summarize(screensObj)}`);
-		}
-	});
-
-	// List/search style tabs (Pins, Links, Files) may render through a different component
-	attempt("search results screen", () => {
-		const mod = findByProps("SearchResults") as any;
-		const comp = mod?.SearchResults;
-		if (!comp) throw new Error("SearchResults not found");
-		const hook = (obj: any, key: string) => {
-			patches.push(
-				after(key, obj, ([props], ret) => {
-					recordScreen("SearchResults", props);
-					return wrapPins(props, ret);
-				}),
-			);
-		};
-		if (typeof comp === "function") hook(mod, "SearchResults");
-		else if (typeof comp.type === "function") hook(comp, "type"); // React.memo
-		else if (typeof comp.render === "function") hook(comp, "render"); // forwardRef
-		else throw new Error(`SearchResults has unexpected shape: ${summarize(comp)}`);
-		diag.patched.push("SearchResults");
-	});
-
-	// Probe: which components does the channel info screen build its tabs from?
-	attempt("channel info probe", () => {
-		const info = findByName("ChannelInfo", false);
-		if (!info) throw new Error("ChannelInfo not found");
-		const seenProbe = new Set<string>();
-		const probe = (ret: any) => {
-			const names = new Set<string>();
-			const extra: string[] = [];
-			const walk = (n: any, depth: number) => {
-				if (!n || depth > 14) return;
-				if (Array.isArray(n)) {
-					for (const c of n) walk(c, depth + 1);
-					return;
-				}
-				if (typeof n !== "object") return;
-				const ty = n.type;
-				const name = typeof ty === "function"
-					? ty.displayName ?? ty.name
-					: ty?.displayName ?? ty?.type?.displayName ?? ty?.type?.name ?? ty?.render?.name;
-				if (name) names.add(String(name));
-				const pr = n.props;
-				if (pr && typeof pr === "object") {
-					for (const k of ["tabs", "screens", "routes", "items", "renderScene", "sceneMap", "initialRouteName"]) {
-						if (k in pr) extra.push(`${name ?? "?"}.${k}=${summarize(pr[k])}`);
-					}
-					walk(pr.children, depth + 1);
-				}
-			};
-			walk(ret, 0);
-			const line = `ChannelInfo tree: ${[...names].slice(0, 70).join(" > ")}`;
-			if (seenProbe.has(line)) return;
-			seenProbe.add(line);
-			diag.info.push(line, ...extra.slice(0, 6));
-		};
-		patches.push(after("default", info, (_, ret) => void probe(ret)));
-		diag.patched.push("ChannelInfo probe");
-	});
 
 	// Discord 343: the channel info "Pins" tab is a component named PinsScreen
 	// (props: { tab: "pins", searchContext, isFocused }) that renders InitialPinsScreen.
@@ -220,7 +138,6 @@ export default function() {
 			const [obj, key] = found;
 			patches.push(
 				after(key, obj, ([props], ret) => {
-					recordScreen(name, props);
 					return wrapPins(props, ret);
 				}),
 			);
