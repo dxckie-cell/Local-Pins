@@ -52,7 +52,7 @@ export default function() {
 			fn();
 		} catch (e) {
 			failed.push(name);
-			diag.failed.push(name);
+			diag.failed.push(`${name} (${(e as any)?.message ?? e})`);
 			console.warn(`[Local Pins] patch "${name}" failed`, e);
 		}
 	};
@@ -192,26 +192,42 @@ export default function() {
 	// Discord 343: the channel info "Pins" tab is a component named PinsScreen
 	// (props: { tab: "pins", searchContext, isFocused }) that renders InitialPinsScreen.
 	attempt("pins tab", () => {
-		for (const name of ["PinsScreen", "InitialPinsScreen"]) {
-			const mod = findByName(name, false) as any;
-			const d = mod?.default;
-			let obj: any;
-			let key: string;
-			if (typeof d === "function") [obj, key] = [mod, "default"];
-			else if (typeof d?.type === "function") [obj, key] = [d, "type"]; // React.memo
-			else if (typeof d?.render === "function") [obj, key] = [d, "render"]; // forwardRef
-			else continue;
+		// find a component by its function name anywhere in a module's exports
+		// (default or named export, optionally wrapped in React.memo / forwardRef)
+		const nameOf = (v: any) => (typeof v === "function" ? v.displayName ?? v.name : undefined);
+		const locate = (name: string): [any, string] | undefined => {
+			let hit: [any, string] | undefined;
+			find((m: any) => {
+				if (hit || !m || (typeof m !== "object" && typeof m !== "function")) return false;
+				try {
+					for (const k of Object.keys(m)) {
+						const v = m[k];
+						if (!v) continue;
+						if (nameOf(v) === name) hit = [m, k];
+						else if (typeof v === "object" && nameOf(v.type) === name) hit = [v, "type"];
+						else if (typeof v === "object" && nameOf(v.render) === name) hit = [v, "render"];
+						if (hit) return true;
+					}
+				} catch {}
+				return false;
+			});
+			return hit;
+		};
 
+		for (const name of ["PinsScreen", "InitialPinsScreen"]) {
+			const found = locate(name);
+			if (!found) continue;
+			const [obj, key] = found;
 			patches.push(
 				after(key, obj, ([props], ret) => {
 					recordScreen(name, props);
 					return wrapPins(props, ret);
 				}),
 			);
-			diag.patched.push(name);
+			diag.patched.push(`${name} (${key})`);
 			return;
 		}
-		throw new Error("PinsScreen / InitialPinsScreen not found");
+		throw new Error("PinsScreen / InitialPinsScreen not found in any module exports");
 	});
 
 	attempt("channel settings pins", () => {
