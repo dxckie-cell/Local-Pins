@@ -48,7 +48,6 @@ await build({
 			name: "swc",
 			setup(b) {
 				b.onLoad({ filter: /\.[cm]?[jt]sx?$/ }, async args => {
-					if (args.path.includes("/node_modules/")) return;
 					const result = await transformFile(args.path, {
 						jsc: { externalHelpers: false },
 						env: {
