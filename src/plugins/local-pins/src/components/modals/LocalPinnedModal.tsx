@@ -9,7 +9,7 @@ import Text from "$/components/Text";
 import intlProxy from "$/lib/intlProxy";
 import { popModal } from "$/types";
 
-import { hasAnyPin, removePin } from "../..";
+import { getPins, hasAnyPin, removePin } from "../..";
 import useLocalPinned from "../../hooks/useLocalPinned";
 
 const { default: ChatItemWrapper } = findByProps(
@@ -87,16 +87,18 @@ class SafeMessage extends React.Component<
 	}
 }
 
-const Message = ({
+export const Message = ({
 	message,
 	channelId,
 	channel,
 	remove,
+	inModal = true,
 }: {
 	message: any;
 	channelId: string;
 	channel?: any;
 	remove: () => void;
+	inModal?: boolean;
 }) => {
 	const styles = stylesheet.createThemedStyleSheet({
 		message: {
@@ -123,7 +125,7 @@ const Message = ({
 			style={styles.message}
 			android_ripple={styles.androidRipple}
 			onPress={() => {
-				popModal();
+				if (inModal) popModal();
 				// give the modal a moment to close before navigating
 				setTimeout(() => jumpTo(channel, channelId, message.id), 250);
 			}}
@@ -165,7 +167,10 @@ const Message = ({
 	);
 };
 
-export default function LocalPinnedModal() {
+/** The list of local pins: all channels (modal) or a single channel (Pins tab). */
+export function LocalPinsList(
+	{ channelId, inModal = true }: { channelId?: string; inModal?: boolean },
+) {
 	const styles = stylesheet.createThemedStyleSheet({
 		main: {
 			flexDirection: "column",
@@ -183,71 +188,61 @@ export default function LocalPinnedModal() {
 		},
 	});
 
-	const { data, status, remove } = useLocalPinned(undefined);
-	if (!hasAnyPin()) {
+	const { data, status, remove } = useLocalPinned(channelId);
+	const any = channelId ? getPins(channelId).length > 0 : hasAnyPin();
+
+	if (!any) {
 		return (
-			<Modal mkey="local-pinned" title="Local Pinned">
-				<RN.View style={styles.bowomp}>
-					<RN.Image
-						source={{
-							dark: getAssetIDByName("img_pins_empty_dark"),
-							light: getAssetIDByName("img_pins_empty_light"),
-						}[ThemeStore.theme]
-							?? getAssetIDByName("img_pins_empty_darker")}
-						resizeMode="contain"
-						style={{ marginLeft: 35 }}
-					/>
-					<Text
-						variant="text-md/medium"
-						color="TEXT_MUTED"
-						align="center"
-					>
-						{intlProxy.NO_PINS_IN_CHANNEL}
-					</Text>
-				</RN.View>
-			</Modal>
+			<RN.View style={styles.bowomp}>
+				<RN.Image
+					source={{
+						dark: getAssetIDByName("img_pins_empty_dark"),
+						light: getAssetIDByName("img_pins_empty_light"),
+					}[ThemeStore?.theme as "dark" | "light"]
+						?? getAssetIDByName("img_pins_empty_darker")}
+					resizeMode="contain"
+					style={{ marginLeft: 35 }}
+				/>
+				<Text variant="text-md/medium" color="TEXT_MUTED" align="center">
+					{channelId
+						? "No local pins in this channel yet. Long-press a message and tap Pin Message Locally."
+						: intlProxy.NO_PINS_IN_CHANNEL}
+				</Text>
+			</RN.View>
+		);
+	}
+
+	if (!data) {
+		return (
+			<RN.View style={{ alignItems: "center", justifyContent: "center", flex: 1 }}>
+				<RN.ActivityIndicator size="large" style={{ marginBottom: 10 }} />
+				<Text variant="text-lg/semibold" color="TEXT_DEFAULT" align="center">
+					{Math.floor(status * 100)}%
+				</Text>
+			</RN.View>
 		);
 	}
 
 	return (
+		<RN.ScrollView style={{ flex: 1 }}>
+			<RN.View style={styles.main}>
+				{data.map(x => (
+					<Message
+						{...x}
+						inModal={inModal}
+						remove={() => remove(x.message.id)}
+						key={x.message.id}
+					/>
+				))}
+			</RN.View>
+		</RN.ScrollView>
+	);
+}
+
+export default function LocalPinnedModal() {
+	return (
 		<Modal mkey="local-pinned" title="Local Pinned">
-			{!data
-				? (
-					<RN.View
-						style={{
-							alignItems: "center",
-							justifyContent: "center",
-							flex: 1,
-						}}
-					>
-						<RN.ActivityIndicator
-							size="large"
-							style={{ marginBottom: 10 }}
-						/>
-						<Text
-							variant="text-lg/semibold"
-							color="TEXT_DEFAULT"
-							align="center"
-						>
-							{Math.floor(status * 100)}%
-						</Text>
-					</RN.View>
-				)
-				: (
-					<RN.ScrollView style={{ flex: 1 }}>
-						<RN.View style={styles.main}>
-							{data.map(x => (
-								<Message
-									{...x}
-									remove={() => {
-										remove(x.message.id);
-									}}
-									key={x.message.id}
-								/>
-							))}
-						</RN.View>
-					</RN.ScrollView>
-				)}
+			<LocalPinsList />
 		</Modal>
 	);
 }

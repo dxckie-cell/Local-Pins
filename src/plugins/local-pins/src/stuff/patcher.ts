@@ -74,41 +74,17 @@ export default function() {
 	});
 
 	attempt("pins screen", () => {
-	if (screens?.MessagesScreen && useOnPressSearchItem) {
+		if (!screens?.MessagesScreen) throw new Error("MessagesScreen not found");
 		patches.push(
-			after(
-				"MessagesScreen",
-				screens,
-				([{ searchContext, tab }], ret) => {
-					if (tab === "pins") {
-						const { channelId } = searchContext;
-						React.useEffect(
-							() => () => {
-								unpatch();
-							},
-							[],
-						);
-
-						const press = useOnPressSearchItem(searchContext);
-						const unpatch = before("type", ret, ([x]) => {
-							if (x?.data) {
-								x.data = pinsCallback.overrides[channelId]?.({
-									messages: x.data,
-									searchContext,
-									press,
-								}) ?? x.data;
-							}
-						});
-
-						return React.createElement(PinsScreen, {
-							channelId: searchContext.channelId,
-							ret,
-						});
-					}
-				},
-			),
+			after("MessagesScreen", screens, ([props], ret) => {
+				if (props?.tab !== "pins") return;
+				const channelId = props.searchContext?.channelId
+					?? props.searchContext?.channel?.id
+					?? props.channelId;
+				if (!channelId) return;
+				return React.createElement(PinsScreen, { channelId, ret });
+			}),
 		);
-	}
 	});
 	attempt("channel settings pins", () => {
 	patches.push(

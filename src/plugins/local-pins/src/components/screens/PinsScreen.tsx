@@ -1,15 +1,51 @@
-import { findByProps } from "@vendetta/metro";
-import { ReactNative as RN } from "@vendetta/metro/common";
+import { React, ReactNative as RN, stylesheet } from "@vendetta/metro/common";
 import { useProxy } from "@vendetta/storage";
+import { semanticColors } from "@vendetta/ui";
 
 import Text from "$/components/Text";
 
-import { vstorage } from "../..";
-import useLocalPinned from "../../hooks/useLocalPinned";
-import { pinsCallback } from "../../stuff/patcher";
+import { getPins, vstorage } from "../..";
+import { LocalPinsList } from "../modals/LocalPinnedModal";
 
-const { useSearchResultsQuery } = findByProps("useSearchResultsQuery") ?? ({} as any);
+let lastMode: "server" | "local" = "server";
 
+const styles = stylesheet.createThemedStyleSheet({
+	row: {
+		flexDirection: "row",
+		gap: 8,
+		paddingHorizontal: 16,
+		paddingVertical: 8,
+	},
+	chip: {
+		paddingHorizontal: 14,
+		paddingVertical: 6,
+		borderRadius: 16,
+		backgroundColor: semanticColors.BACKGROUND_MOD_SUBTLE,
+	},
+	chipActive: {
+		backgroundColor: semanticColors.BACKGROUND_MOD_STRONG,
+	},
+});
+
+function Chip(
+	{ label, active, onPress }: { label: string; active: boolean; onPress: () => void },
+) {
+	return (
+		<RN.Pressable
+			onPress={onPress}
+			style={[styles.chip, active && styles.chipActive]}
+		>
+			<Text
+				variant="text-sm/semibold"
+				color={active ? "TEXT_DEFAULT" : "TEXT_MUTED"}
+			>
+				{label}
+			</Text>
+		</RN.Pressable>
+	);
+}
+
+/** Wraps Discord's Pins tab with a Server pins / Local pins switch. */
 export default function PinsScreen({
 	channelId,
 	ret,
@@ -18,49 +54,27 @@ export default function PinsScreen({
 	ret: any;
 }) {
 	useProxy(vstorage);
-	const { status, data } = useLocalPinned(channelId);
-
-	pinsCallback.overrides[channelId] = ({
-		messages,
-		searchContext,
-		press,
-	}) => {
-		const rawQuery = useSearchResultsQuery?.(searchContext);
-		const query = (
-			typeof rawQuery === "string"
-				? rawQuery
-				: rawQuery?.query ?? searchContext?.query ?? ""
-		).toString().toLowerCase();
-		return [
-			...(data
-				? data
-					.filter(x =>
-						!query
-						|| (x.message.content ?? "").toLowerCase().includes(query)
-					)
-					.map(({ message, channelId }) => ({
-						type: "message",
-						props: {
-							searchContext,
-							message,
-							onPress: () => press?.(channelId, message.id),
-							highlighter: (something: any) => something,
-							lineClamp: 10,
-						},
-					}))
-				: []),
-			...messages,
-		];
+	const [mode, setMode] = React.useState(lastMode);
+	const pick = (m: "server" | "local") => {
+		lastMode = m;
+		setMode(m);
 	};
 
-	return data ? ret : (
-		<RN.View
-			style={{ alignItems: "center", justifyContent: "center", flex: 1 }}
-		>
-			<RN.ActivityIndicator size="large" style={{ marginBottom: 10 }} />
-			<Text variant="text-lg/semibold" color="TEXT_DEFAULT" align="center">
-				{Math.floor(status * 100)}%
-			</Text>
+	return (
+		<RN.View style={{ flex: 1 }}>
+			<RN.View style={styles.row}>
+				<Chip
+					label="Server pins"
+					active={mode === "server"}
+					onPress={() => pick("server")}
+				/>
+				<Chip
+					label={`Local pins (${getPins(channelId).length})`}
+					active={mode === "local"}
+					onPress={() => pick("local")}
+				/>
+			</RN.View>
+			{mode === "server" ? ret : <LocalPinsList channelId={channelId} inModal={false} />}
 		</RN.View>
 	);
 }
