@@ -1,4 +1,6 @@
-import { modules } from "@vendetta/metro";
+import { findByProps, modules } from "@vendetta/metro";
+import { React } from "@vendetta/metro/common";
+import { before } from "@vendetta/patcher";
 
 // Lightweight on-device diagnostics, shown in the plugin settings
 // (helps when Discord changes internals and a patch silently stops matching)
@@ -11,6 +13,7 @@ export const diag = {
 	calls: [] as string[],
 	scan: [] as string[],
 	info: [] as string[],
+	capture: [] as string[],
 };
 
 const seen = new Set<string>();
@@ -53,6 +56,7 @@ export function report() {
 		`patched: ${diag.patched.join(", ") || "none"}`,
 		`failed: ${diag.failed.join(", ") || "none"}`,
 		...diag.info,
+		...(diag.capture.length ? ["capture (pins related elements):", ...diag.capture] : []),
 		...(diag.scan.length ? ["module scan:", ...diag.scan] : []),
 		"screen renders seen:",
 		...(diag.calls.length ? diag.calls : ["(none yet - open a channel's Pins tab)"]),
@@ -87,4 +91,63 @@ export function scanModules(limit = 70) {
 	}
 	diag.scan = out.length ? out : ["(no matches - open the Pins tab first, then scan again)"];
 	return diag.scan;
+}
+
+// --- capture mode: log UI elements that look pins-related while the user opens the Pins tab ---
+let captureUnpatch: (() => void)[] = [];
+const captureSeen = new Set<string>();
+
+export const isCapturing = () => captureUnpatch.length > 0;
+
+function captureElement(type: any, props: any) {
+	try {
+		const name: string | undefined = typeof type === "function"
+			? type.displayName ?? type.name
+			: type?.displayName ?? type?.type?.displayName ?? type?.type?.name
+				?? type?.render?.displayName ?? type?.render?.name;
+		const nameHit = !!name && /Pin/i.test(name);
+		let propHit = false;
+		if (props && typeof props === "object") {
+			for (const k in props) {
+				const v = props[k];
+				if (typeof v === "string" && /^(pins?|pinned-messages|pinned)$/i.test(v)) {
+					propHit = true;
+					break;
+				}
+			}
+		}
+		if (!nameHit && !propHit) return;
+		const line = `${name ?? "?"} ${summarize(props)}`;
+		if (captureSeen.has(line) || diag.capture.length >= 30) return;
+		captureSeen.add(line);
+		diag.capture.push(line);
+	} catch {}
+}
+
+export function startCapture() {
+	if (isCapturing()) return;
+	try {
+		const rt = findByProps("jsx", "jsxs") as any;
+		for (const fn of ["jsx", "jsxs", "jsxDEV"]) {
+			if (typeof rt?.[fn] === "function") {
+				captureUnpatch.push(before(fn, rt, ([type, props]: any[]) => captureElement(type, props)));
+			}
+		}
+	} catch {}
+	try {
+		if (typeof (React as any).createElement === "function") {
+			captureUnpatch.push(
+				before("createElement", React as any, ([type, props]: any[]) => captureElement(type, props)),
+			);
+		}
+	} catch {}
+}
+
+export function stopCapture() {
+	for (const u of captureUnpatch) {
+		try {
+			u();
+		} catch {}
+	}
+	captureUnpatch = [];
 }

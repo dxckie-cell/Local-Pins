@@ -12,7 +12,7 @@ import Text from "$/components/Text";
 import { openModal } from "$/types";
 
 import { hasAnyPin, vstorage } from "..";
-import { report, scanModules } from "../stuff/diag";
+import { isCapturing, report, scanModules, startCapture, stopCapture } from "../stuff/diag";
 import LocalPinnedModal from "./modals/LocalPinnedModal";
 
 const { FormRow } = Forms;
@@ -64,6 +64,18 @@ export default () => {
 					leading={<FormRow.Icon source={getAssetIDByName("PencilIcon")} />}
 					onPress={() => {
 						scanModules();
+						refresh();
+					}}
+				/>
+				<FormRow
+					label={isCapturing() ? "Stop capture" : "Start capture"}
+					subLabel={isCapturing()
+						? "Capturing pins-related UI. Tap to stop, then Refresh."
+						: "Tap, open a channel's Pins tab, come back here and tap Stop capture"}
+					leading={<FormRow.Icon source={getAssetIDByName("PencilIcon")} />}
+					onPress={() => {
+						if (isCapturing()) stopCapture();
+						else startCapture();
 						refresh();
 					}}
 				/>
