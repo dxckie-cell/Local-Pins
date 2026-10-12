@@ -131,6 +131,19 @@ export default function() {
 		}
 	});
 
+	// List/search style tabs (Pins, Links, Files) may render through a different component
+	attempt("search results screen", () => {
+		const mod = findByProps("SearchResults") as any;
+		if (typeof mod?.SearchResults !== "function") throw new Error("SearchResults not found");
+		patches.push(
+			after("SearchResults", mod, ([props], ret) => {
+				recordScreen("SearchResults", props);
+				return wrapPins(props, ret);
+			}),
+		);
+		diag.patched.push("SearchResults");
+	});
+
 	attempt("channel settings pins", () => {
 	patches.push(
 		after("default", ChannelSettingsModal, (_, navigator) => {
