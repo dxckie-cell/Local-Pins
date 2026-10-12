@@ -134,14 +134,59 @@ export default function() {
 	// List/search style tabs (Pins, Links, Files) may render through a different component
 	attempt("search results screen", () => {
 		const mod = findByProps("SearchResults") as any;
-		if (typeof mod?.SearchResults !== "function") throw new Error("SearchResults not found");
-		patches.push(
-			after("SearchResults", mod, ([props], ret) => {
-				recordScreen("SearchResults", props);
-				return wrapPins(props, ret);
-			}),
-		);
+		const comp = mod?.SearchResults;
+		if (!comp) throw new Error("SearchResults not found");
+		const hook = (obj: any, key: string) => {
+			patches.push(
+				after(key, obj, ([props], ret) => {
+					recordScreen("SearchResults", props);
+					return wrapPins(props, ret);
+				}),
+			);
+		};
+		if (typeof comp === "function") hook(mod, "SearchResults");
+		else if (typeof comp.type === "function") hook(comp, "type"); // React.memo
+		else if (typeof comp.render === "function") hook(comp, "render"); // forwardRef
+		else throw new Error(`SearchResults has unexpected shape: ${summarize(comp)}`);
 		diag.patched.push("SearchResults");
+	});
+
+	// Probe: which components does the channel info screen build its tabs from?
+	attempt("channel info probe", () => {
+		const info = findByName("ChannelInfo", false);
+		if (!info) throw new Error("ChannelInfo not found");
+		const seenProbe = new Set<string>();
+		const probe = (ret: any) => {
+			const names = new Set<string>();
+			const extra: string[] = [];
+			const walk = (n: any, depth: number) => {
+				if (!n || depth > 14) return;
+				if (Array.isArray(n)) {
+					for (const c of n) walk(c, depth + 1);
+					return;
+				}
+				if (typeof n !== "object") return;
+				const ty = n.type;
+				const name = typeof ty === "function"
+					? ty.displayName ?? ty.name
+					: ty?.displayName ?? ty?.type?.displayName ?? ty?.type?.name ?? ty?.render?.name;
+				if (name) names.add(String(name));
+				const pr = n.props;
+				if (pr && typeof pr === "object") {
+					for (const k of ["tabs", "screens", "routes", "items", "renderScene", "sceneMap", "initialRouteName"]) {
+						if (k in pr) extra.push(`${name ?? "?"}.${k}=${summarize(pr[k])}`);
+					}
+					walk(pr.children, depth + 1);
+				}
+			};
+			walk(ret, 0);
+			const line = `ChannelInfo tree: ${[...names].slice(0, 70).join(" > ")}`;
+			if (seenProbe.has(line)) return;
+			seenProbe.add(line);
+			diag.info.push(line, ...extra.slice(0, 6));
+		};
+		patches.push(after("default", info, (_, ret) => void probe(ret)));
+		diag.patched.push("ChannelInfo probe");
 	});
 
 	attempt("channel settings pins", () => {
