@@ -15,7 +15,7 @@ import { hasAnyPin, vstorage } from "..";
 import { isCapturing, report, scanModules, startCapture, stopCapture } from "../stuff/diag";
 import LocalPinnedModal from "./modals/LocalPinnedModal";
 
-const { FormRow } = Forms;
+const { FormRow, FormSwitchRow } = Forms;
 
 const styles = stylesheet.createThemedStyleSheet({
 	destructiveIcon: {
@@ -37,6 +37,15 @@ export default () => {
 				title="Local pins"
 				icon={getAssetIDByName("PinIcon")}
 			>
+				<FormSwitchRow
+					label="Switch on the Pins tab"
+					subLabel="Adds Server pins / Local pins chips to a channel's Pins tab (reopen the channel info screen to apply)"
+					leading={<FormRow.Icon source={getAssetIDByName("PinIcon")} />}
+					value={vstorage.pinsTabSwitch !== false}
+					onValueChange={(v: boolean) => {
+						vstorage.pinsTabSwitch = v;
+					}}
+				/>
 				<FormRow
 					label="View local pins"
 					subLabel={hasAnyPin() ? "Open your locally pinned messages" : "Nothing pinned yet"}

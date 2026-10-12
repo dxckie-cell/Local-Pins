@@ -11,6 +11,7 @@ import intlProxy from "$/lib/intlProxy";
 import type { SearchContext } from "$/types";
 
 import ChannelPinsRow from "../components/ChannelPinsRow";
+import { vstorage } from "..";
 import { diag } from "./diag";
 import PinMessageLocallyAction, { ViewLocalPinsAction } from "../components/MessageActionSheetButton";
 import ChannelPinsModal from "../components/modals/ChannelPinsModal";
@@ -89,6 +90,7 @@ export default function() {
 		}
 	};
 	const wrapPins = (props: any, ret: any) => {
+		if (vstorage.pinsTabSwitch === false) return; // user turned the Pins tab switch off
 		// fast path (this runs on every render of the tab): Discord 343 passes exactly this shape
 		if (props?.tab === "pins" && typeof props.searchContext?.channelId === "string") {
 			return React.createElement(PinsScreen, { channelId: props.searchContext.channelId, ret });
