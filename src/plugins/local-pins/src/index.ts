@@ -5,9 +5,6 @@ import patcher from "./stuff/patcher";
 
 export const vstorage = storage as {
 	pinned: Record<string, { id: string; pinned: number }[]>;
-	preferFilters: ("server" | "local")[];
-	/** show the Server pins / Local pins switch on the channel Pins tab (default on) */
-	pinsTabSwitch?: boolean;
 };
 
 // TODO add some kind of compression
@@ -25,9 +22,6 @@ export function getAllPins() {
 }
 export function hasAnyPin() {
 	return Object.values(vstorage.pinned ?? {}).some(x => x.length > 0);
-}
-export function clearPins(channel: string) {
-	if (vstorage.pinned) delete vstorage.pinned[channel];
 }
 export function hasPin(channel: string, id: string) {
 	return (vstorage.pinned?.[channel] ?? []).some(x => x.id === id);
@@ -48,8 +42,6 @@ export function removePin(channel: string, id: string) {
 
 export function onLoad() {
 	vstorage.pinned ??= {};
-	vstorage.preferFilters ??= ["server", "local"];
-	vstorage.pinsTabSwitch ??= true;
 }
 
 export const onUnload = patcher();

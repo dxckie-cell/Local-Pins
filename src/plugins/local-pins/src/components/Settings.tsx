@@ -1,21 +1,18 @@
-import { clipboard, React, ReactNative as RN, stylesheet } from "@vendetta/metro/common";
+import { ReactNative as RN, stylesheet } from "@vendetta/metro/common";
 import { useProxy } from "@vendetta/storage";
 import { semanticColors } from "@vendetta/ui";
 import { showConfirmationAlert } from "@vendetta/ui/alerts";
 import { getAssetIDByName } from "@vendetta/ui/assets";
-import { showToast } from "@vendetta/ui/toasts";
 import { Forms } from "@vendetta/ui/components";
 
 import { BetterTableRowGroup } from "$/components/BetterTableRow";
 import Text from "$/components/Text";
 
 import { openModal } from "$/types";
-
 import { hasAnyPin, vstorage } from "..";
-import { isCapturing, report, scanModules, startCapture, stopCapture } from "../stuff/diag";
 import LocalPinnedModal from "./modals/LocalPinnedModal";
 
-const { FormRow, FormSwitchRow } = Forms;
+const { FormRow } = Forms;
 
 const styles = stylesheet.createThemedStyleSheet({
 	destructiveIcon: {
@@ -29,7 +26,6 @@ const destructiveText: Parameters<typeof Text>[0] = {
 
 export default () => {
 	useProxy(vstorage);
-	const [, refresh] = React.useReducer((x: number) => x + 1, 0);
 
 	return (
 		<RN.ScrollView>
@@ -37,15 +33,6 @@ export default () => {
 				title="Local pins"
 				icon={getAssetIDByName("PinIcon")}
 			>
-				<FormSwitchRow
-					label="Switch on the Pins tab"
-					subLabel="Adds Server pins / Local pins chips to a channel's Pins tab (reopen the channel info screen to apply)"
-					leading={<FormRow.Icon source={getAssetIDByName("PinIcon")} />}
-					value={vstorage.pinsTabSwitch !== false}
-					onValueChange={(v: boolean) => {
-						vstorage.pinsTabSwitch = v;
-					}}
-				/>
 				<FormRow
 					label="View local pins"
 					subLabel={hasAnyPin() ? "Open your locally pinned messages" : "Nothing pinned yet"}
@@ -53,51 +40,6 @@ export default () => {
 					trailing={<FormRow.Arrow />}
 					onPress={() => openModal("local-pinned", LocalPinnedModal)}
 				/>
-			</BetterTableRowGroup>
-			<BetterTableRowGroup
-				title="Diagnostics"
-				icon={getAssetIDByName("PencilIcon")}
-			>
-				<FormRow
-					label="Copy diagnostics"
-					subLabel="Copies what the plugin sees in Discord (for bug reports)"
-					leading={<FormRow.Icon source={getAssetIDByName("PencilIcon")} />}
-					onPress={() => {
-						clipboard.setString(report());
-						showToast("Copied diagnostics");
-					}}
-				/>
-				<FormRow
-					label="Scan Discord modules"
-					subLabel="Open a channel's Pins tab first, then come back and tap this"
-					leading={<FormRow.Icon source={getAssetIDByName("PencilIcon")} />}
-					onPress={() => {
-						scanModules();
-						refresh();
-					}}
-				/>
-				<FormRow
-					label={isCapturing() ? "Stop capture" : "Start capture"}
-					subLabel={isCapturing()
-						? "Capturing pins-related UI. Tap to stop, then Refresh."
-						: "Tap, open a channel's Pins tab, come back here and tap Stop capture"}
-					leading={<FormRow.Icon source={getAssetIDByName("PencilIcon")} />}
-					onPress={() => {
-						if (isCapturing()) stopCapture();
-						else startCapture();
-						refresh();
-					}}
-				/>
-				<FormRow
-					label="Refresh"
-					leading={<FormRow.Icon source={getAssetIDByName("PencilIcon")} />}
-					onPress={refresh}
-				/>
-				<RN.View style={{ padding: 12 }}>
-					<Text variant="text-sm/medium" color="TEXT_MUTED" selectable>
-						{report()}
-					</Text>
-				</RN.View>
 			</BetterTableRowGroup>
 			<BetterTableRowGroup
 				title="Settings"
@@ -130,7 +72,7 @@ export default () => {
 							title: "Clear data",
 							content: "Are you sure you want to clear all local pin data?",
 							confirmText: "Clear",
-							confirmColor: "red" as ButtonColors,
+							confirmColor: "red" as any,
 							onConfirm: () => {
 								vstorage.pinned = {};
 							},

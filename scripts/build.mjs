@@ -20,13 +20,6 @@ await build({
 	supported: { "const-and-let": false },
 	minifySyntax: !isDev,
 	minifyWhitespace: !isDev,
-	define: {
-		IS_DEV: `${isDev}`,
-		PREVIEW_LANG: "false",
-		DEFAULT_LANG: "undefined",
-		DEV_LANG: "undefined",
-		PLUGINS_LIST: JSON.stringify(["local-pins"]),
-	},
 	alias: { "$": "./src/stuff" },
 	loader: { ".html": "text", ".css": "text", ".svg": "text", ".json": "json" },
 	globalName: "$",

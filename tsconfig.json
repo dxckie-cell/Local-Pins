@@ -20,9 +20,7 @@
 		"target": "esnext"
 	},
 	"include": [
-		"src/**/*",
-		"lang/**/*",
-		"declarations",
+		"src",
 		"node_modules/vendetta-types/defs.d.ts"
 	]
 }

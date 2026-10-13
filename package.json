@@ -6,7 +6,6 @@
 	"scripts": {
 		"build": "node scripts/build.mjs",
 		"dev": "node scripts/build.mjs --dev",
-		"serve": "node scripts/serve.mjs",
 		"check": "tsc"
 	},
 	"dependencies": {
@@ -18,13 +17,22 @@
 		"zustand": "^5.0.6"
 	},
 	"devDependencies": {
-		"@types/node": "^22.0.0",
 		"typescript": "^5.8.3",
 		"vendetta-types": "^2.4.21"
 	},
 	"pnpm": {
-		"peerDependencyRules": { "ignoreMissing": ["react", "react-native"] },
-		"onlyBuiltDependencies": ["@swc/core", "esbuild"]
+		"peerDependencyRules": {
+			"ignoreMissing": [
+				"react",
+				"react-native"
+			]
+		},
+		"onlyBuiltDependencies": [
+			"@swc/core",
+			"esbuild"
+		]
 	},
-	"engines": { "node": ">=20" }
+	"engines": {
+		"node": ">=20"
+	}
 }
