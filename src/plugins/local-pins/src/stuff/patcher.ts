@@ -1,7 +1,6 @@
 import { find, findByProps } from "@vendetta/metro";
 import { React } from "@vendetta/metro/common";
 import { after, before } from "@vendetta/patcher";
-import { findInReactTree } from "@vendetta/utils";
 
 import { LazyActionSheet } from "$/components/ActionSheet";
 import intlProxy from "$/lib/intlProxy";
@@ -32,21 +31,46 @@ function patchMessageMenu() {
 						|| (typeof rowLabel(c) === "string"
 							&& typeof c.props?.onPress === "function"));
 
-				const buttons = findInReactTree(
-					comp,
-					x => Array.isArray(x) && x.filter(isRow).length >= 2,
-				);
-				if (!buttons) return comp;
+				// every list of rows in the sheet (it is split into groups)
+				const lists: any[][] = [];
+				const seen = new Set<any>();
+				const walk = (node: any, depth: number) => {
+					if (!node || typeof node !== "object" || depth > 24 || seen.has(node)) return;
+					seen.add(node);
+					if (Array.isArray(node) && node.filter(isRow).length >= 2) lists.push(node);
+					if (Array.isArray(node)) {
+						for (const c of node) walk(c, depth + 1);
+					} else {
+						for (const k of ["props", "children", "child", "sibling"]) walk(node[k], depth + 1);
+					}
+				};
+				walk(comp, 0);
+				if (!lists.length) return comp;
 
-				// put it right before "Mark Unread" when present, else at the end
-				const unread = buttons.findIndex(
+				const row = React.createElement(PinMessageLocallyAction, message);
+
+				// preferred spot: directly below the server's "Pin Message" / "Unpin Message" row
+				const isServerPin = (c: any) => {
+					const label = rowLabel(c);
+					return typeof label === "string" && !!label
+						&& (label === intlProxy.PIN_MESSAGE
+							|| label === intlProxy.UNPIN_MESSAGE
+							|| /^(un)?pin message$/i.test(label));
+				};
+				for (const list of lists) {
+					const at = list.findIndex(isServerPin);
+					if (at >= 0) {
+						list.splice(at + 1, 0, row);
+						return;
+					}
+				}
+
+				// no server pin row (e.g. no permission): before "Mark Unread", else at the end
+				const list = lists[0];
+				const unread = list.findIndex(
 					(x: any) => !!intlProxy.MARK_UNREAD && rowLabel(x) === intlProxy.MARK_UNREAD,
 				);
-				buttons.splice(
-					unread >= 0 ? unread : buttons.length,
-					0,
-					React.createElement(PinMessageLocallyAction, message),
-				);
+				list.splice(unread >= 0 ? unread : list.length, 0, row);
 			});
 		});
 	});
