@@ -1,6 +1,7 @@
 import { find, findByProps } from "@vendetta/metro";
 import { React } from "@vendetta/metro/common";
 import { after, before } from "@vendetta/patcher";
+import { showToast } from "@vendetta/ui/toasts";
 
 import { LazyActionSheet } from "$/components/ActionSheet";
 import intlProxy from "$/lib/intlProxy";
@@ -78,34 +79,71 @@ function patchMessageMenu() {
 
 /**
  * Wraps the channel info "Pins" tab with the Server pins / Local pins switch.
- * Discord 343 names that tab's component `PinsScreen` (props: { tab: "pins", searchContext }),
- * so find it by function name in any module export (plain, memo or forwardRef).
+ * Discord names that tab's component `PinsScreen` (props: { tab: "pins", searchContext }).
+ * Newer Discord versions may rename it or load it lazily, so match a few name
+ * shapes, look inside memo/forwardRef wrappers and keep retrying for a while.
  */
-function patchPinsTab() {
+const PINS_NAME = /^(Channel)?Pin(s|ned)?(Messages)?(Screen|Tab|Page|View)?$/;
+
+function findPinsScreen() {
 	const nameOf = (v: any) => (typeof v === "function" ? v.displayName ?? v.name : undefined);
+	const isPins = (v: any) => {
+		const n = nameOf(v);
+		return typeof n === "string" && PINS_NAME.test(n);
+	};
 
 	let hit: [any, string] | undefined;
+	const seen: string[] = [];
 	find((m: any) => {
 		if (hit || !m || (typeof m !== "object" && typeof m !== "function")) return false;
 		try {
 			for (const k of Object.keys(m)) {
 				const v = m[k];
 				if (!v) continue;
-				if (nameOf(v) === "PinsScreen") hit = [m, k];
-				else if (typeof v === "object" && nameOf(v.type) === "PinsScreen") hit = [v, "type"];
-				else if (typeof v === "object" && nameOf(v.render) === "PinsScreen") hit = [v, "render"];
+				if (/pin/i.test(k) || /pin/i.test(nameOf(v) ?? "")) seen.push(k);
+				if (isPins(v)) hit = [m, k];
+				else if (typeof v === "object" && isPins(v.type)) hit = [v, "type"];
+				else if (typeof v === "object" && isPins(v.render)) hit = [v, "render"];
+				else if (typeof v === "object" && v.type && isPins(v.type.type)) hit = [v.type, "type"];
 				if (hit) return true;
 			}
 		} catch {}
 		return false;
 	});
-	if (!hit) throw new Error("PinsScreen not found");
+	return { hit, seen };
+}
 
-	return after(hit[1], hit[0], ([props], ret) => {
-		const channelId = props?.searchContext?.channelId;
-		if (props?.tab !== "pins" || typeof channelId !== "string") return;
-		return React.createElement(PinsScreen, { channelId, ret });
-	});
+function patchPinsTab() {
+	let unpatch: (() => void) | undefined;
+	let timer: any;
+	let tries = 0;
+
+	const attempt = () => {
+		const { hit, seen } = findPinsScreen();
+		if (!hit) {
+			// lazily loaded screens aren't in the module list yet: try again shortly
+			if (++tries < 30) {
+				timer = setTimeout(attempt, 1500);
+			} else {
+				console.warn("[Local Pins] PinsScreen not found; pin-related names:", [...new Set(seen)].join(", "));
+				try {
+					showToast(`Local Pins: Pins tab not found (${[...new Set(seen)].slice(0, 8).join(", ") || "no candidates"})`);
+				} catch {}
+			}
+			return;
+		}
+		unpatch = after(hit[1], hit[0], ([props], ret) => {
+			const channelId = props?.searchContext?.channelId;
+			if (props?.tab !== "pins" || typeof channelId !== "string") return;
+			return React.createElement(PinsScreen, { channelId, ret });
+		});
+	};
+	attempt();
+
+	return () => {
+		clearTimeout(timer);
+		unpatch?.();
+	};
 }
 
 export default function() {
