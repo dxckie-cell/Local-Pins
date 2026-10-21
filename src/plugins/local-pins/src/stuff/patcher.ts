@@ -122,19 +122,19 @@ function patchPinsTab() {
 	let timer: any;
 	let tries = 0;
 
+	// 349 only loads the channel info screens once they're first opened, so keep
+	// checking (cheaply, every few seconds) until they show up instead of giving up
 	const attempt = () => {
-		const { hits, seenNames } = findScreens();
+		let found: ReturnType<typeof findScreens> | undefined;
+		try {
+			found = findScreens();
+		} catch (e) {
+			console.warn("[Local Pins] screen scan failed", e);
+		}
+		const hits = found?.hits ?? [];
 		if (!hits.length) {
-			// lazily loaded screens aren't in the module list yet: try again shortly
-			if (++tries < 30) {
-				timer = setTimeout(attempt, 1500);
-			} else {
-				const names = [...seenNames].slice(0, 10).join(", ") || "none";
-				console.warn("[Local Pins] pins screen not found; screens seen:", names);
-				try {
-					showToast(`Local Pins: Pins tab not found. Screens: ${names}`);
-				} catch {}
-			}
+			if (++tries === 20) console.warn("[Local Pins] pins screen not loaded yet, still waiting");
+			timer = setTimeout(attempt, 3000);
 			return;
 		}
 		for (const [obj, key] of hits) {
