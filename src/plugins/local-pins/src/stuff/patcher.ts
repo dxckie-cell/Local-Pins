@@ -1,13 +1,12 @@
-import { find, findByProps } from "@vendetta/metro";
+import { findByProps } from "@vendetta/metro";
 import { React } from "@vendetta/metro/common";
 import { after, before } from "@vendetta/patcher";
-import { showToast } from "@vendetta/ui/toasts";
 
 import { LazyActionSheet } from "$/components/ActionSheet";
 import intlProxy from "$/lib/intlProxy";
 
 import PinMessageLocallyAction from "../components/MessageActionSheetButton";
-import PinsScreen, { WrappedContext } from "../components/screens/PinsScreen";
+import PinsScreen from "../components/screens/PinsScreen";
 
 const { ActionSheetRow } = findByProps("ActionSheetRow") ?? ({} as any);
 
@@ -79,78 +78,48 @@ function patchMessageMenu() {
 
 /**
  * Wraps the channel info "Pins" tab with the Server pins / Local pins switch.
- * Discord names that tab's component `PinsScreen` (props: { tab: "pins", searchContext }).
- * Newer Discord versions may rename it or load it lazily, so match a few name
- * shapes, look inside memo/forwardRef wrappers and keep retrying for a while.
+ * Component names can't be relied on (349 doesn't expose them), so intercept element
+ * creation instead: any element with props { tab: "pins", searchContext: { channelId } }
+ * is swapped for a wrapper that renders the original inside our chips UI.
  */
-// 343 names the pins tab `PinsScreen`; newer versions may render it through the generic
-// messages screen the Media/Links tabs use. Hook all of them, each acts only for tab "pins".
-const SCREEN_NAME = /^(PinsScreen|BaseMessagesScreen|[A-Za-z]*PinsScreen)$/;
-
-function findScreens() {
-	const nameOf = (v: any) => (typeof v === "function" ? v.displayName ?? v.name : undefined);
-	const isScreen = (v: any) => {
-		const n = nameOf(v);
-		return typeof n === "string" && SCREEN_NAME.test(n);
-	};
-
-	const hits: [any, string][] = [];
-	const seenNames = new Set<string>();
-	find((m: any) => {
-		if (!m || (typeof m !== "object" && typeof m !== "function")) return false;
-		try {
-			for (const k of Object.keys(m)) {
-				const v = m[k];
-				if (!v) continue;
-				const n = nameOf(v) ?? nameOf(v.type) ?? nameOf(v.render);
-				if (typeof n === "string" && /(Screen|Pins?)$/.test(n)) seenNames.add(n);
-				let target: [any, string] | undefined;
-				if (isScreen(v)) target = [m, k];
-				else if (typeof v === "object" && isScreen(v.type)) target = [v, "type"];
-				else if (typeof v === "object" && isScreen(v.render)) target = [v, "render"];
-				else if (typeof v === "object" && v.type && isScreen(v.type.type)) target = [v.type, "type"];
-				if (target && !hits.some(h => h[0] === target![0] && h[1] === target![1])) hits.push(target);
-			}
-		} catch {}
-		return false;
-	});
-	return { hits, seenNames };
-}
-
 function patchPinsTab() {
-	const unpatches: (() => void)[] = [];
-	let timer: any;
-	let tries = 0;
+	const wrappers = new WeakMap<any, any>();
 
-	// 349 only loads the channel info screens once they're first opened, so keep
-	// checking (cheaply, every few seconds) until they show up instead of giving up
-	const attempt = () => {
-		let found: ReturnType<typeof findScreens> | undefined;
-		try {
-			found = findScreens();
-		} catch (e) {
-			console.warn("[Local Pins] screen scan failed", e);
-		}
-		const hits = found?.hits ?? [];
-		if (!hits.length) {
-			if (++tries === 20) console.warn("[Local Pins] pins screen not loaded yet, still waiting");
-			timer = setTimeout(attempt, 3000);
-			return;
-		}
-		for (const [obj, key] of hits) {
-			unpatches.push(after(key, obj, ([props], ret) => {
-				// already wrapped by an outer screen (PinsScreen renders through BaseMessagesScreen)
-				if (React.useContext(WrappedContext)) return;
-				const channelId = props?.searchContext?.channelId;
-				if (props?.tab !== "pins" || typeof channelId !== "string") return;
+	const wrapperFor = (type: any) => {
+		let W = wrappers.get(type);
+		if (!W) {
+			W = (props: any) => {
+				const { __localPins, ...rest } = props;
+				const channelId = rest.searchContext?.channelId ?? rest.channelId;
+				const ret = React.createElement(type, { ...rest, __localPins: true });
 				return React.createElement(PinsScreen, { channelId, ret });
-			}));
+			};
+			wrappers.set(type, W);
 		}
+		return W;
 	};
-	attempt();
+
+	const intercept = (args: any[]) => {
+		const [type, props] = args;
+		if (
+			!type || !props || typeof props !== "object" || props.__localPins
+			|| props.tab !== "pins"
+			|| typeof (props.searchContext?.channelId ?? props.channelId) !== "string"
+			|| typeof type === "string"
+		) return;
+		return [wrapperFor(type), props, ...args.slice(2)] as any;
+	};
+
+	const unpatches: (() => void)[] = [];
+	unpatches.push(before("createElement", React, intercept as any));
+	const runtime = findByProps("jsx", "jsxs");
+	if (runtime) {
+		for (const k of ["jsx", "jsxs", "jsxDEV"]) {
+			if (typeof runtime[k] === "function") unpatches.push(before(k, runtime, intercept as any));
+		}
+	}
 
 	return () => {
-		clearTimeout(timer);
 		for (const u of unpatches) u();
 	};
 }
