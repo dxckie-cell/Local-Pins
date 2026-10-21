@@ -10,6 +10,9 @@ import { LocalPinsList } from "../modals/LocalPinnedModal";
 type Mode = "server" | "local";
 let lastMode: Mode = "server";
 
+/** true inside our wrapper, so nested screens don't get wrapped a second time */
+export const WrappedContext = React.createContext(false);
+
 const DURATION = 240;
 const SLIDE = 18;
 
@@ -98,6 +101,7 @@ export default function PinsScreen({
 	const serverActive = progress.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });
 
 	return (
+		<WrappedContext.Provider value={true}>
 		<RN.View style={{ flex: 1 }}>
 			<RN.View style={styles.row}>
 				<Chip
@@ -152,5 +156,6 @@ export default function PinsScreen({
 				)}
 			</RN.View>
 		</RN.View>
+		</WrappedContext.Provider>
 	);
 }
