@@ -6,7 +6,7 @@ import { LazyActionSheet } from "$/components/ActionSheet";
 import intlProxy from "$/lib/intlProxy";
 
 import PinMessageLocallyAction from "../components/MessageActionSheetButton";
-import PinsScreen from "../components/screens/PinsScreen";
+import PinsScreen, { WrappedContext } from "../components/screens/PinsScreen";
 
 const { ActionSheetRow } = findByProps("ActionSheetRow") ?? ({} as any);
 
@@ -90,6 +90,9 @@ function patchPinsTab() {
 		if (!W) {
 			W = (props: any) => {
 				const { __localPins, ...rest } = props;
+				// nested components get the same props: only the outermost one adds chips
+				const inside = React.useContext(WrappedContext);
+				if (inside) return React.createElement(type, { ...rest, __localPins: true });
 				const channelId = rest.searchContext?.channelId ?? rest.channelId;
 				const ret = React.createElement(type, { ...rest, __localPins: true });
 				return React.createElement(PinsScreen, { channelId, ret });
