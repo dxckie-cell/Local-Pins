@@ -77,10 +77,9 @@ function patchMessageMenu() {
 }
 
 /**
- * Wraps the channel info "Pins" tab with the Server pins / Local pins switch.
- * Component names can't be relied on (349 doesn't expose them), so intercept element
- * creation instead: any element with props { tab: "pins", searchContext: { channelId } }
- * is swapped for a wrapper that renders the original inside our chips UI.
+ * Adds the Server pins / Local pins switch to the channel info "Pins" tab. Component names
+ * aren't reliable, so swap any element with props { tab: "pins", searchContext: { channelId } }
+ * for a wrapper that renders the original inside our UI.
  */
 function patchPinsTab() {
 	const wrappers = new WeakMap<any, any>();
@@ -88,43 +87,34 @@ function patchPinsTab() {
 	const wrapperFor = (type: any) => {
 		let W = wrappers.get(type);
 		if (!W) {
-			W = (props: any) => {
-				const { __localPins, ...rest } = props;
-				// nested components get the same props: only the outermost one adds chips
-				const inside = React.useContext(WrappedContext);
-				if (inside) return React.createElement(type, { ...rest, __localPins: true });
-				const channelId = rest.searchContext?.channelId ?? rest.channelId;
-				const ret = React.createElement(type, { ...rest, __localPins: true });
-				return React.createElement(PinsScreen, { channelId, ret });
+			W = ({ __localPins, ...props }: any) => {
+				const inner = React.createElement(type, { ...props, __localPins: true });
+				// nested components get the same props: only the outermost one adds the switch
+				if (React.useContext(WrappedContext)) return inner;
+				return React.createElement(PinsScreen, {
+					channelId: props.searchContext?.channelId ?? props.channelId,
+					ret: inner,
+				});
 			};
 			wrappers.set(type, W);
 		}
 		return W;
 	};
 
-	const intercept = (args: any[]) => {
-		const [type, props] = args;
+	const intercept = ([type, props, ...rest]: any[]) => {
 		if (
-			!type || !props || typeof props !== "object" || props.__localPins
-			|| props.tab !== "pins"
+			typeof type === "string" || !type || !props || props.__localPins || props.tab !== "pins"
 			|| typeof (props.searchContext?.channelId ?? props.channelId) !== "string"
-			|| typeof type === "string"
 		) return;
-		return [wrapperFor(type), props, ...args.slice(2)] as any;
+		return [wrapperFor(type), props, ...rest] as any;
 	};
 
-	const unpatches: (() => void)[] = [];
-	unpatches.push(before("createElement", React, intercept as any));
+	const unpatches = [before("createElement", React, intercept)];
 	const runtime = findByProps("jsx", "jsxs");
-	if (runtime) {
-		for (const k of ["jsx", "jsxs", "jsxDEV"]) {
-			if (typeof runtime[k] === "function") unpatches.push(before(k, runtime, intercept as any));
-		}
+	for (const k of ["jsx", "jsxs", "jsxDEV"]) {
+		if (typeof runtime?.[k] === "function") unpatches.push(before(k, runtime, intercept));
 	}
-
-	return () => {
-		for (const u of unpatches) u();
-	};
+	return () => unpatches.forEach(u => u());
 }
 
 export default function() {
